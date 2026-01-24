@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import "./HardModeTasks.css";
 
 export default function HardModeTasks() {
@@ -16,6 +16,10 @@ export default function HardModeTasks() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [phase, setPhase] = useState("work");
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const prevPhaseRef = useRef(phase);
+  const prevSecondsRef = useRef(secondsLeft);
+  const prevTimerRef = useRef(timerOn);
+  const audioCtxRef = useRef(null);
 
   const today = useMemo(() => {
     return new Date().toLocaleDateString("en-US", {
@@ -94,6 +98,49 @@ export default function HardModeTasks() {
       resetTimer();
     }
   }, [activeIndex, sequence.length]);
+
+  function playBeep(frequency = 880, duration = 0.12) {
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext ||
+        window.webkitAudioContext)();
+    }
+    const ctx = audioCtxRef.current;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = frequency;
+    gain.gain.value = 0.12;
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + duration);
+  }
+
+  useEffect(() => {
+    const prevPhase = prevPhaseRef.current;
+    const prevSeconds = prevSecondsRef.current;
+    const prevTimer = prevTimerRef.current;
+
+    if (!prevTimer && timerOn) {
+      playBeep(880, 0.15);
+    }
+
+    if (timerOn && prevSeconds > 0 && secondsLeft === 0) {
+      playBeep(660, 0.12);
+    }
+
+    if (timerOn && prevPhase !== phase && secondsLeft > 0) {
+      playBeep(980, 0.12);
+    }
+
+    if (prevTimer && !timerOn && secondsLeft === 0 && sequence.length > 0) {
+      playBeep(520, 0.2);
+    }
+
+    prevPhaseRef.current = phase;
+    prevSecondsRef.current = secondsLeft;
+    prevTimerRef.current = timerOn;
+  }, [timerOn, phase, secondsLeft, sequence.length]);
 
   function addBlock() {
     if (!name.trim()) return;
@@ -357,7 +404,7 @@ export default function HardModeTasks() {
               Block {activeIndex + 1} / {Math.max(sequence.length, 1)} · {phase.toUpperCase()}
             </p>
             <p className="muted">
-              {sequence[activeIndex]?.name ?? "No active block"}
+              {sequence[activeIndex]?.name - "No active block"}
             </p>
             <div className="timer">
               <span>{timerLabel}</span>
